@@ -77,7 +77,7 @@ function screenLogin() {
         <div class="muted">Não chegou? Veja a caixa de spam. ${standaloneNote()}</div>
         <button class="btn ghost small" data-a="relogin">Usar outro e-mail</button></div>` : `
       <label class="stack" style="gap:6px"><span class="label">Seu e-mail</span><input class="input" id="email" type="email" inputmode="email" autocomplete="email" placeholder="voce@email.com" value="${esc(ui.email)}"></label>
-      <button class="btn brasa" data-a="login">Receber link de acesso</button>
+      <button class="btn brasa" data-a="login">Receber código</button>
       <div class="muted">Sem senha: você recebe um código no e-mail.</div>`}
     </div>`;
 }
