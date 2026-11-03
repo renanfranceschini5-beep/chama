@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  define: { __BUILD__: JSON.stringify(new Date(Date.now() - 3 * 3600e3).toISOString().slice(5, 16).replace('T', ' ')) },
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
