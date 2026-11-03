@@ -6,6 +6,7 @@ import * as api from './api.js';
 const CATS = ['Musculação', 'Corrida', 'Caminhada', 'Bicicleta', 'Natação', 'Funcional', 'HIIT', 'Crossfit', 'Yoga', 'Pilates', 'Dança', 'Lutas', 'Futebol', 'Tênis e beach tennis', 'Trilha', 'Remo', 'Escalada', 'Alongamento e mobilidade', 'Outro'];
 const REACTS = ['🔥', '👏', '💪', '😮', '😂'];
 const COLORS = ['#7C93FF', '#FFD2BF', '#C9D7CE', '#F2D6E6', '#FCE9A9', '#E6E9EE', '#121826', '#2443D6'];
+const fg = (bg) => (['#121826', '#2443D6', '#1C7A46'].includes(bg) ? '#FFFFFF' : '#121826');
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = (n) => String(n).replace('.', ',');
 const FLAME = (fill, core, w = 20) => `<svg width="${w}" height="${Math.round(w * 4 / 3)}" viewBox="0 0 48 64" aria-hidden="true"><path d="M24 2C30 16 44 24 44 41A20 20 0 0 1 4 41C4 31 10 25 14 18C16 27 20 29 22.5 29C20 19 20 10 24 2Z" fill="${fill}"/>${core ? `<path d="M24 34C27 39 32 42 32 48A8 8 0 0 1 16 48C16 43 20 40 24 34Z" fill="${core}"/>` : ''}</svg>`;
@@ -24,6 +25,7 @@ const I = {
 const GOAL_ICON = {
   agua: sv('<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>'), sono: sv('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
   comida: sv('<path d="M5 19c0-8 5-14 14-14 0 9-6 14-14 14z"/><path d="M5 19l7-7"/>'), outra: sv('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>'),
+  alcance: sv('<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>'),
 };
 
 /* ===================== Estado ===================== */
@@ -43,8 +45,9 @@ function store(k, v) { try { if (v == null) localStorage.removeItem(k); else loc
 function stored(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
 /* ===================== Pedaços ===================== */
-function av(u, cls = '', extra = '') { const x = userById(u); return `<span class="av ${cls}" style="background:${x.bg};color:${x.fg};${extra}">${esc((x.name || '?')[0].toUpperCase())}</span>`; }
-function avBtn(u, cls = '', extra = '') { const x = userById(u); return `<button class="av ${cls}" data-a="perfil" data-u="${u}" aria-label="Ver perfil de ${esc(x.name)}" style="background:${x.bg};color:${x.fg};${extra}">${esc((x.name || '?')[0].toUpperCase())}</button>`; }
+const avInner = (x) => (x.photo ? `<img src="${x.photo}" alt="" loading="lazy">` : esc((x.name || '?')[0].toUpperCase()));
+function av(u, cls = '', extra = '') { const x = userById(u); return `<span class="av ${cls}" style="background:${x.bg};color:${x.fg};${extra}">${avInner(x)}</span>`; }
+function avBtn(u, cls = '', extra = '') { const x = userById(u); return `<button class="av ${cls}" data-a="perfil" data-u="${u}" aria-label="Ver perfil de ${esc(x.name)}" style="background:${x.bg};color:${x.fg};${extra}">${avInner(x)}</button>`; }
 const nameOf = (u) => (u === ME ? 'Você' : esc(userById(u).name));
 function photoBox(c, h) {
   const inner = c.photo ? `<img src="${c.photo}" alt="Foto do treino de ${esc(userById(c.user).name)}" loading="lazy">` : `<span>sem foto</span>`;
@@ -88,8 +91,16 @@ function screenOnboarding() {
   return `
     ${head('Seu perfil')}
     <div class="pad stack">
+      <div class="row" style="gap:14px">
+        <label style="position:relative;cursor:pointer;flex:none" aria-label="Escolher foto de perfil">
+          <span class="av" style="width:84px;height:84px;font-size:32px;background:${color};color:${fg(color)}">${me.photo ? `<img src="${me.photo}" alt="">` : esc(((ui.pname ?? me.name) || '?')[0].toUpperCase())}</span>
+          <span style="position:absolute;right:-2px;bottom:-2px;width:30px;height:30px;border-radius:999px;background:var(--asfalto);color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff">${sv('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', 16)}</span>
+          <input type="file" accept="image/*" id="avatarfile" class="sr">
+        </label>
+        <div class="stack" style="gap:6px"><strong>Foto de perfil</strong><span class="muted">${me.photo ? 'Toque na foto para trocar.' : 'Opcional. Sem foto, aparece a inicial na cor que você escolher.'}</span>${me.photo ? `<button data-a="del-avatar" style="border:0;background:transparent;padding:0;text-align:left;color:var(--texto-suave);text-decoration:underline;font-size:13px">Remover foto</button>` : ''}</div>
+      </div>
       <label class="stack" style="gap:6px"><span class="label">Como a turma te chama</span><input class="input" id="pname" value="${esc(ui.pname ?? (me.name === 'Sem nome' ? '' : me.name))}" placeholder="Seu nome ou apelido" maxlength="30"></label>
-      <div class="stack" style="gap:8px"><span class="label">Cor do seu avatar</span><div class="chips">${COLORS.map((c) => `<button data-a="pcolor" data-c="${c}" aria-label="Cor ${c}" aria-pressed="${c === color}" style="width:44px;height:44px;border-radius:999px;border:0;background:${c};box-shadow:${c === color ? '0 0 0 3px #fff,0 0 0 5px var(--asfalto)' : 'inset 0 0 0 1px var(--linha)'}"></button>`).join('')}</div></div>
+      <div class="stack" style="gap:8px"><span class="label">Cor do seu avatar${me.photo ? ' (aparece se tirar a foto)' : ''}</span><div class="chips">${COLORS.map((c) => `<button data-a="pcolor" data-c="${c}" aria-label="Cor ${c}" aria-pressed="${c === color}" style="width:44px;height:44px;border-radius:999px;border:0;background:${c};box-shadow:${c === color ? '0 0 0 3px #fff,0 0 0 5px var(--asfalto)' : 'inset 0 0 0 1px var(--linha)'}"></button>`).join('')}</div></div>
       <button class="btn dark" data-a="save-profile">Salvar</button>
     </div>`;
 }
@@ -328,7 +339,7 @@ const SCREENS = {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => D.add(wk, i));
     return `
       <div style="background:var(--asfalto);color:#fff" class="pad stack">
-        <div class="row" style="padding-top:12px">${self ? '' : `<button class="round dark" data-a="back" aria-label="Voltar">${I.back}</button>`}${av(u, '', 'width:52px;height:52px;font-size:20px')}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:18px">${esc(userById(u).name)}</div><div style="font-size:13px;color:var(--inv-suave)">${esc(groups.map((g) => g.name).join(' · '))}</div></div>${self ? `<button class="round dark" data-a="sheet" data-s="conta" aria-label="Conta e configurações">${sv('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>')}</button>` : ''}</div>
+        <div class="row" style="padding-top:12px">${self ? '' : `<button class="round dark" data-a="back" aria-label="Voltar">${I.back}</button>`}${self ? `<button class="av" data-a="edit-profile" aria-label="Editar foto e nome" style="width:52px;height:52px;font-size:20px;background:${userById(u).bg};color:${userById(u).fg}">${avInner(userById(u))}</button>` : av(u, '', 'width:52px;height:52px;font-size:20px')}<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:18px">${esc(userById(u).name)}</div><div style="font-size:13px;color:var(--inv-suave)">${esc(groups.map((g) => g.name).join(' · '))}</div></div>${self ? `<button class="round dark" data-a="sheet" data-s="conta" aria-label="Conta e configurações">${sv('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>')}</button>` : ''}</div>
         <div class="row" style="align-items:flex-end;gap:14px">${st.current ? FLAME('#FF4F12', '#F4F5F7', 48) : FLAME('#5A6273', null, 48)}<div><div class="label" style="color:var(--inv-suave)">${st.current ? 'Chama acesa' : 'Chama apagada'}</div><div class="disp" style="font-size:64px">${st.current} ${st.current === 1 ? 'DIA' : 'DIAS'}</div></div></div>
         <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;text-align:center;padding-bottom:16px">${days.map((d) => {
           const s = st.status[d];
@@ -346,7 +357,7 @@ const SCREENS = {
         </div>
         <button class="card row" data-a="hist" data-u="${u}" style="border:0;text-align:left;min-height:52px"><span class="row" style="gap:3px" aria-hidden="true"><span style="width:14px;height:14px;border-radius:3px;background:#3A4458"></span><span style="width:14px;height:14px;border-radius:3px;background:#1F2736"></span><span style="width:14px;height:14px;border-radius:3px;box-shadow:inset 0 0 0 2px var(--folga-claro)"></span></span><span style="flex:1;font-weight:600">Histórico de treinos</span><span class="muted">calendário</span>${I.next}</button>
         <div class="row" style="justify-content:space-between"><span class="label">${self ? 'Metas pessoais' : 'Metas de ' + esc(userById(u).name)}</span>${self ? `<button data-a="sheet" data-s="addgoal" style="border:0;background:transparent;font-weight:600;color:var(--brasa-forte);height:44px">+ Adicionar</button>` : ''}</div>
-        ${goals.length ? `<div class="card" style="padding:4px 14px">${goals.map((goal, i) => goalRow(goal, self, i === goals.length - 1)).join('')}</div>` : `<div class="muted">${self ? 'Nenhuma meta ainda. Adicione uma de hidratação, sono, alimentação ou uma sua.' : 'Nenhuma meta pessoal.'}</div>`}
+        ${goals.length ? `<div class="card" style="padding:4px 14px">${goals.map((goal, i) => goalRow(goal, self, i === goals.length - 1)).join('')}</div>` : `<div class="muted">${self ? 'Nenhuma meta ainda. Adicione uma de rotina (água, sono, alimentação) ou de alcance (correr 21 km, perder 5 kg).' : 'Nenhuma meta pessoal.'}</div>`}
         ${self && !isStandalone() ? `<button class="btn ghost small" data-a="sheet" data-s="instalar">${I.share} Instalar o Chama na tela de início</button>` : ''}
       </div>`;
   },
@@ -469,6 +480,14 @@ function postCard(c, showGroups) {
 }
 function goalRow(goal, self, last) {
   const p = goalProgress(db, goal, db.today);
+  if (goal.type === 'alcance') {
+    const ctrlA = self ? (p.done ? `<span style="font-size:13px;font-weight:700;color:var(--ok);flex:none">Concluída</span>` : `<button data-a="sheet" data-s="progresso" data-id="${goal.id}" style="height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--linha);background:var(--superficie);font-weight:700;font-size:13px;flex:none">Atualizar</button>`)
+      : `<span style="font-size:13px;font-weight:700;color:${p.done ? 'var(--ok)' : 'var(--texto-suave)'};flex:none">${p.done ? 'Concluída' : Math.round(p.pct) + '%'}</span>`;
+    const prazo = goal.deadline && !p.done ? (goal.deadline < db.today ? ' · prazo passou' : ` · até ${D.short(goal.deadline)}`) : '';
+    return `<div class="row" style="padding:12px 0;${last ? '' : 'border-bottom:1px solid var(--linha)'}">
+    <span style="width:40px;height:40px;flex:none;border-radius:12px;background:${p.done ? '#E3F1E8' : 'var(--giz)'};color:${p.done ? 'var(--ok)' : 'inherit'};display:flex;align-items:center;justify-content:center">${GOAL_ICON.alcance}</span>
+    <div style="flex:1;min-width:0;gap:6px" class="stack"><span style="font-weight:600">${esc(goal.title)}</span><span class="bar" style="height:6px"><i style="width:${p.pct}%;background:${p.done ? 'var(--ok)' : 'var(--brasa)'}"></i></span><span class="muted">${p.text}${prazo}${self ? ` · <button data-a="del-goal" data-id="${goal.id}" style="border:0;background:transparent;color:var(--texto-suave);text-decoration:underline;padding:0;font-size:13px">remover</button>` : ''}</span></div>${ctrlA}</div>`;
+  }
   const isCheck = goal.type === 'comida' || goal.type === 'outra';
   const target = goal.type === 'agua' ? `${num(goal.target / 1000)} L de água por dia` : goal.type === 'sono' ? `Dormir ${hours(goal.target)} por noite` : esc(goal.target) + (goal.when === 'uteis' ? ' em dias úteis' : '');
   let ctrl = '';
@@ -517,17 +536,40 @@ const SHEETS = {
   addgoal() {
     const n = ui.newGoal;
     const types = [['comida', 'Alimentação'], ['agua', 'Hidratação'], ['sono', 'Sono'], ['outra', 'Personalizada']];
+    const kind = `<div class="seg" role="group" aria-label="Tipo de meta"><button class="${n.kind === 'rotina' ? 'on' : ''}" data-a="ngkind" data-v="rotina" aria-pressed="${n.kind === 'rotina'}">Rotina diária</button><button class="${n.kind === 'alcance' ? 'on' : ''}" data-a="ngkind" data-v="alcance" aria-pressed="${n.kind === 'alcance'}">Alcance</button></div>`;
+    if (n.kind === 'alcance') {
+      const units = ['km', 'kg', 'min', 'vezes', 'livros'];
+      return `<h2 class="title" style="font-size:24px">Nova meta pessoal</h2>${kind}
+      <div class="muted">Um objetivo com ponto de chegada. Você vai atualizando quanto já alcançou.</div>
+      <label class="stack" style="gap:6px"><span class="label">Objetivo</span><input class="input" id="ngtitle" maxlength="60" value="${esc(n.title)}" placeholder="Ex.: Correr 21 km, Perder 5 kg"></label>
+      <div class="row" style="align-items:flex-end">
+        <label class="stack" style="gap:6px;flex:1"><span class="label">Alvo</span><input class="input" id="ngtarget" type="text" inputmode="decimal" value="${n.target ?? ''}" placeholder="21"></label>
+        <label class="stack" style="gap:6px;flex:1"><span class="label">Unidade</span><input class="input" id="ngunit" maxlength="12" value="${esc(n.unit)}" placeholder="km"></label>
+      </div>
+      <div class="chips">${units.map((u) => `<button class="chip ${n.unit === u ? 'on' : ''}" data-a="ngunit" data-v="${u}">${u}</button>`).join('')}</div>
+      <label class="stack" style="gap:6px"><span class="label">Prazo (opcional)</span><input class="input" id="ngdeadline" type="date" min="${db.today}" value="${n.deadline || ''}"></label>
+      <div style="padding:12px 14px;border-radius:12px;background:var(--giz);font-size:14px;line-height:20px">Para "perder 5 kg", registre quantos quilos já perdeu. Quem está nas suas turmas vê o progresso. Não conta no placar nem na chama.</div>
+      <button class="btn dark" data-a="save-goal">Salvar meta</button>`;
+    }
     let field = '';
     if (n.type === 'agua') field = `<div class="row" style="justify-content:space-between"><div><div class="label">Água por dia</div><div class="muted" style="font-size:12px">Passos de 250 ml</div></div><div class="row"><button class="round" data-a="ng" data-d="-250" aria-label="Diminuir">${I.minus}</button><span class="disp" style="font-size:32px;min-width:76px;text-align:center">${num(n.agua / 1000)} L</span><button class="round" data-a="ng" data-d="250" aria-label="Aumentar">${I.plus}</button></div></div>`;
     if (n.type === 'sono') field = `<div class="row" style="justify-content:space-between"><div class="label">Horas por noite</div><div class="row"><button class="round" data-a="ng" data-d="-0.5" aria-label="Diminuir">${I.minus}</button><span class="disp" style="font-size:32px;min-width:76px;text-align:center">${hours(n.sono)}</span><button class="round" data-a="ng" data-d="0.5" aria-label="Aumentar">${I.plus}</button></div></div>`;
     if (n.type === 'comida') field = `<label class="stack" style="gap:6px"><span class="label">Sua meta</span><input class="input" id="ngtext" maxlength="60" value="${esc(n.comida)}" placeholder="Ex.: fruta no café da manhã"></label>`;
     if (n.type === 'outra') field = `<label class="stack" style="gap:6px"><span class="label">Sua meta</span><input class="input" id="ngtext" maxlength="60" value="${esc(n.outra)}" placeholder="Ex.: meditar 10 min, ler 20 páginas"><span class="muted" style="font-size:12px">Todo dia você marca se cumpriu.</span></label>`;
-    return `<h2 class="title" style="font-size:24px">Nova meta pessoal</h2>
+    return `<h2 class="title" style="font-size:24px">Nova meta pessoal</h2>${kind}
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${types.map(([k, l]) => `<button data-a="ngtype" data-v="${k}" aria-pressed="${n.type === k}" style="height:68px;border-radius:14px;border:${n.type === k ? '2px solid var(--asfalto)' : '1px solid var(--linha)'};background:${n.type === k ? 'var(--giz)' : 'var(--superficie)'};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-weight:${n.type === k ? 700 : 600};font-size:14px">${GOAL_ICON[k]}${l}</button>`).join('')}</div>
       ${field}
       <div class="stack" style="gap:8px"><div class="label">Quando</div><div class="chips"><button class="chip dark ${n.when === 'todos' ? 'on' : ''}" data-a="ngwhen" data-v="todos">Todos os dias</button><button class="chip dark ${n.when === 'uteis' ? 'on' : ''}" data-a="ngwhen" data-v="uteis">Dias úteis</button></div></div>
       <div style="padding:12px 14px;border-radius:12px;background:var(--giz);font-size:14px;line-height:20px">Você marca o progresso todo dia no seu perfil. Quem está nas suas turmas vê a meta e como você está indo. Ela não conta no placar nem na chama.</div>
       <button class="btn dark" data-a="save-goal">Salvar meta</button>`;
+  },
+  progresso() {
+    const goal = db.goals.find((x) => x.id === ui.sheetData.id);
+    const p = goalProgress(db, goal, db.today);
+    return `<h2 class="title" style="font-size:24px">${esc(goal.title)}</h2>
+      <div class="muted">Até agora: ${p.text}. Quanto você já alcançou?</div>
+      <div class="row"><input id="progval" type="text" inputmode="decimal" class="input disp" value="${p.v ? num(p.v) : ''}" style="height:56px;font-size:30px;text-align:center;flex:1"><span class="disp" style="font-size:26px">${esc(goal.unit || '')}</span></div>
+      <button class="btn brasa" data-a="save-progress" data-id="${goal.id}">Salvar progresso</button>`;
   },
   codigo() {
     return `<h2 class="title" style="font-size:24px">Entrar com código</h2><input class="input" id="code" placeholder="Ex.: CHM-1234" autocapitalize="characters" style="text-transform:uppercase"><button class="btn dark" data-a="check-code">Continuar</button>`;
@@ -538,7 +580,7 @@ const SHEETS = {
     const eff = effectiveFromFor(j, db.today);
     return `<h2 class="title" style="font-size:24px">Entrar na ${esc(j.name)}</h2>
       <div class="muted">${j.members} pessoa${j.members > 1 ? 's' : ''} na turma.</div>
-      ${late ? `<div class="card" style="background:var(--giz)">A temporada atual já começou. Você entra no placar em <strong>${D.short(eff)}</strong>. Até lá, já pode ver o mural, reagir e comentar.</div>` : '<div class="card" style="background:var(--giz)">A temporada ainda não começou. Você já entra na disputa da primeira.</div>'}
+      ${late ? `<div class="card" style="background:var(--giz)">A temporada já está rolando. Você entra no placar <strong>a partir de hoje (${D.short(eff)})</strong>; os dias de antes não contam.</div>` : '<div class="card" style="background:var(--giz)">A temporada ainda não começou. Você já entra na disputa da primeira.</div>'}
       <button class="btn dark ${ui.busy ? 'spin' : ''}" data-a="join">Entrar na turma</button>`;
   },
   instalar() {
@@ -551,7 +593,7 @@ const SHEETS = {
   },
   conta() {
     return `<h2 class="title" style="font-size:24px">Sua conta</h2>
-      <button class="btn ghost small" data-a="edit-profile">Editar nome e cor</button>
+      <button class="btn ghost small" data-a="edit-profile">Editar foto, nome e cor</button>
       ${myGroups().filter((g) => g.leader !== ME).map((g) => `<button class="btn ghost small" data-a="leave" data-g="${g.id}">Sair da turma ${esc(g.name)}</button>`).join('')}
       <button class="btn ghost small" data-a="logout">Sair do Chama neste aparelho</button>
       <button class="btn ghost small" data-a="sheet" data-s="apagar" style="color:var(--apagada)">Apagar meus dados</button>
@@ -570,7 +612,7 @@ function render() {
   if (!api.configured) { main.innerHTML = screenSetup(); navEl.hidden = true; return; }
   if (!ME) { main.innerHTML = screenLogin(); navEl.hidden = true; main.classList.add('nonav'); layer.innerHTML = toastHtml(); return; }
   if (!db) { main.innerHTML = '<div class="empty">Carregando…</div>'; return; }
-  if (!db.users[ME] || db.users[ME].name === 'Sem nome' || ui.screen === 'onboarding') { main.innerHTML = screenOnboarding(); navEl.hidden = true; main.classList.add('nonav'); layer.innerHTML = toastHtml(); return; }
+  if (!db.users[ME] || db.users[ME].name === 'Sem nome' || ui.screen === 'onboarding') { main.innerHTML = screenOnboarding(); navEl.hidden = true; main.classList.add('nonav'); layer.innerHTML = toastHtml(); attachAvatar(); return; }
   main.classList.remove('nonav');
   navEl.hidden = false;
   const scr = SCREENS[ui.screen] ? ui.screen : 'feed';
@@ -586,6 +628,7 @@ function render() {
   const foto = document.getElementById('foto');
   if (foto) foto.addEventListener('change', onPhoto);
 }
+function attachAvatar() { const a = document.getElementById('avatarfile'); if (a) a.addEventListener('change', onAvatar); }
 const toastHtml = () => (ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : '');
 let toastTimer;
 function toast(t) { ui.toast = t; clearTimeout(toastTimer); toastTimer = setTimeout(() => { ui.toast = null; render(); }, 3000); render(); }
@@ -628,6 +671,7 @@ const A = {
     if (!name) return toast('Diga como a turma te chama.');
     await run(async () => { await api.saveProfile(ME, name, ui.color || db.users[ME].bg); ui.screen = 'feed'; ui.pname = null; await reload(); await checkPendingInvite(); });
   },
+  async 'del-avatar'() { ui.pname = (document.getElementById('pname') || {}).value ?? ui.pname; await run(async () => { await api.saveAvatar(ME, null, db.users[ME].photo_path); await reload(); }, 'Foto removida.'); },
   'edit-profile'() { ui.color = db.users[ME].bg; ui.pname = null; go('onboarding'); },
   go(d) {
     if (d.to === 'registrar') { ui.form = newForm(); ui.allCats = false; }
@@ -641,7 +685,8 @@ const A = {
   hmonth(d) { ui.histMonth = d.m; ui.histDay = null; render(); },
   hday(d) { ui.histDay = d.d; render(); },
   sheet(d) {
-    if (d.s === 'addgoal') ui.newGoal = { type: 'agua', agua: 2000, sono: 7, comida: '', outra: '', when: 'todos' };
+    if (d.s === 'addgoal') ui.newGoal = { kind: 'rotina', type: 'agua', agua: 2000, sono: 7, comida: '', outra: '', when: 'todos', title: '', target: null, unit: 'km', deadline: '' };
+    if (d.s === 'progresso') ui.sheetData = { id: d.id };
     ui.sheet = d.s; render();
   },
   'close-sheet'() { ui.sheet = null; render(); },
@@ -708,10 +753,24 @@ const A = {
   },
   async 'del-goal'(d) { await run(async () => { await api.deleteGoal(d.id); await reload(); }, 'Meta removida.'); },
   ngtype(d) { ui.newGoal.type = d.v; render(); },
+  ngkind(d) { keepAlcance(); ui.newGoal.kind = d.v; render(); },
+  ngunit(d) { keepAlcance(); ui.newGoal.unit = d.v; render(); },
+  async 'save-progress'(d) {
+    const goal = db.goals.find((x) => x.id === d.id);
+    const v = parseFloat(String(document.getElementById('progval').value).replace(',', '.'));
+    if (!(v >= 0)) return toast('Digite um número.');
+    await run(async () => { await api.logGoal(goal, db.today, v); ui.sheet = null; await reload(); }, v >= goal.target ? 'Meta concluída! 🔥' : 'Progresso salvo.');
+  },
   ngwhen(d) { ui.newGoal.when = d.v; render(); },
   ng(d) { const n = ui.newGoal; if (n.type === 'agua') n.agua = Math.max(250, n.agua + Number(d.d)); else n.sono = Math.max(4, Math.min(12, n.sono + Number(d.d))); render(); },
   async 'save-goal'() {
     const n = ui.newGoal;
+    if (n.kind === 'alcance') {
+      keepAlcance();
+      if (!n.title) return toast('Escreva o objetivo.');
+      if (!(n.target > 0)) return toast('Diga o alvo, em número.');
+      return run(async () => { await api.addGoal(ME, { type: 'alcance', title: n.title, target: n.target, unit: n.unit, deadline: n.deadline || null }); ui.sheet = null; await reload(); }, 'Meta salva no seu perfil.');
+    }
     if (n.type === 'comida' || n.type === 'outra') { n[n.type] = (document.getElementById('ngtext').value || '').trim(); if (!n[n.type]) return toast('Escreva sua meta.'); }
     const old = n.type !== 'outra' ? db.goals.find((g) => g.user === ME && g.type === n.type) : null;
     await run(async () => {
@@ -789,6 +848,34 @@ function onPhoto(ev) {
   img.src = url;
 }
 
+function keepAlcance() {
+  const n = ui.newGoal; if (!n || n.kind !== 'alcance') return;
+  const g = (id) => document.getElementById(id);
+  if (g('ngtitle')) n.title = g('ngtitle').value.trim();
+  if (g('ngtarget')) { const t = parseFloat(String(g('ngtarget').value).replace(',', '.')); n.target = t > 0 ? t : null; }
+  if (g('ngunit')) n.unit = g('ngunit').value.trim();
+  if (g('ngdeadline')) n.deadline = g('ngdeadline').value;
+}
+function squareJpeg(file, size) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.width, img.height);
+      const cv = document.createElement('canvas'); cv.width = size; cv.height = size;
+      cv.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      cv.toBlob((b) => { URL.revokeObjectURL(url); b ? resolve(b) : reject(new Error('foto')); }, 'image/jpeg', 0.85);
+    };
+    img.onerror = () => reject(new Error('Não deu para ler essa foto.'));
+    img.src = url;
+  });
+}
+async function onAvatar(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  ui.pname = (document.getElementById('pname') || {}).value ?? ui.pname;
+  await run(async () => { const blob = await squareJpeg(file, 320); await api.saveAvatar(ME, blob, db.users[ME].photo_path); await reload(); }, 'Foto atualizada.');
+}
 async function checkPendingInvite() {
   const code = stored('chama-convite');
   if (!code || !db) return;

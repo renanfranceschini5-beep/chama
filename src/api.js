@@ -24,7 +24,7 @@ export async function signOut() { await sb.auth.signOut(); }
 export async function loadAll(me) {
   const today = D.today();
   const since = D.add(today, -200);
-  const profiles = must(await sb.from('profiles').select('id,name,color'));
+  const profiles = must(await sb.from('profiles').select('id,name,color,avatar_path'));
   const groups = must(await sb.from('groups').select('*'));
   const members = must(await sb.from('group_members').select('*'));
   const metas = must(await sb.from('group_metas').select('*'));
@@ -35,11 +35,11 @@ export async function loadAll(me) {
   const comments = ids.length ? must(await sb.from('comments').select('*').in('checkin_id', ids).order('created_at')) : [];
   const goals = must(await sb.from('goals').select('*').order('created_at'));
   const gids = goals.map((g) => g.id);
-  const logs = gids.length ? must(await sb.from('goal_logs').select('*').in('goal_id', gids).gte('date', D.add(today, -40))) : [];
+  const logs = gids.length ? must(await sb.from('goal_logs').select('*').in('goal_id', gids).gte('date', D.add(today, -400))) : [];
   const calls = must(await sb.from('calls').select('*').gte('date', D.add(today, -1)));
 
   const users = {};
-  profiles.forEach((p) => { users[p.id] = { name: p.name || 'Sem nome', bg: p.color, fg: fg(p.color) }; });
+  profiles.forEach((p) => { users[p.id] = { name: p.name || 'Sem nome', bg: p.color, fg: fg(p.color), photo: photoUrl(p.avatar_path), photo_path: p.avatar_path }; });
   const db = {
     today, me, users,
     groups: groups.map((g) => {
@@ -60,7 +60,7 @@ export async function loadAll(me) {
         comments: comments.filter((m) => m.checkin_id === c.id).map((m) => ({ id: m.id, user: m.user_id, text: m.text })),
       };
     }),
-    goals: goals.map((g) => ({ id: g.id, user: g.user_id, type: g.type, target: g.type === 'agua' || g.type === 'sono' ? Number(g.target_num) : g.target_text, when: g.schedule })),
+    goals: goals.map((g) => ({ id: g.id, user: g.user_id, type: g.type, target: ['agua', 'sono', 'alcance'].includes(g.type) ? Number(g.target_num) : g.target_text, title: g.target_text, unit: g.unit, deadline: g.deadline, when: g.schedule })),
     goalLog: {},
     chamados: {},
     callsToMe: calls.filter((c) => c.to_user === me && c.date === today).map((c) => c.from_user),
@@ -72,6 +72,15 @@ export async function loadAll(me) {
 
 // ---------- Perfil ----------
 export async function saveProfile(me, name, color) { must(await sb.from('profiles').update({ name, color }).eq('id', me)); }
+export async function saveAvatar(me, blob, oldPath) {
+  let path = null;
+  if (blob) {
+    path = `${me}/avatar-${crypto.randomUUID()}.jpg`;
+    must(await sb.storage.from('fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: false }));
+  }
+  must(await sb.from('profiles').update({ avatar_path: path }).eq('id', me));
+  if (oldPath) await sb.storage.from('fotos').remove([oldPath]);
+}
 
 // ---------- Check-in ----------
 export async function uploadPhoto(me, blob) {
@@ -111,6 +120,7 @@ export async function leaveGroup(me, groupId) { must(await sb.from('group_member
 
 // ---------- Metas pessoais ----------
 export async function addGoal(me, g) {
+  if (g.type === 'alcance') { must(await sb.from('goals').insert({ user_id: me, type: 'alcance', target_num: g.target, target_text: g.title, unit: g.unit || null, deadline: g.deadline, schedule: 'todos' })); return; }
   must(await sb.from('goals').insert({ user_id: me, type: g.type, target_num: g.type === 'agua' || g.type === 'sono' ? g.target : null, target_text: g.type === 'comida' || g.type === 'outra' ? g.target : null, schedule: g.when }));
 }
 export async function deleteGoal(id) { must(await sb.from('goals').delete().eq('id', id)); }

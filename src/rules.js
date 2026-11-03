@@ -110,6 +110,12 @@ const num = (n) => String(n).replace('.', ',');
 
 export function goalProgress(db, goal, date) {
   const log = db.goalLog[goal.id] || {};
+  if (goal.type === 'alcance') {
+    const last = Object.keys(log).filter((d) => d <= date).sort().pop();
+    const v = last ? Number(log[last]) : 0;
+    const u = goal.unit ? ' ' + goal.unit : '';
+    return { v, done: v >= goal.target, text: `${num(v)} de ${num(goal.target)}${u}`, pct: Math.min(100, v / goal.target * 100) };
+  }
   if (goal.type === 'agua') { const v = Number(log[date] || 0); return { v, done: v >= goal.target, text: `${num(v / 1000)} de ${num(goal.target / 1000)} L`, pct: Math.min(100, v / goal.target * 100) }; }
   if (goal.type === 'sono') { const v = log[date]; return { v, done: v >= goal.target, text: v == null ? 'Sem registro' : `${hours(v)} de ${hours(goal.target)}`, pct: v == null ? 0 : Math.min(100, v / goal.target * 100) }; }
   const wk = D.week(date); let ok = 0, tot = 0;
@@ -117,9 +123,8 @@ export function goalProgress(db, goal, date) {
   return { v: !!log[date], done: !!log[date], text: `${ok} de ${tot} dias nesta semana`, pct: tot ? ok / tot * 100 : 0 };
 }
 
-// Se a temporada já começou, quem entra hoje só conta a partir da próxima.
+// Quem entra com a temporada em andamento conta no placar a partir do dia em que entrou.
 export function effectiveFromFor(g, date) {
   if (!g.started_at) return null;
-  const gg = { mode: g.mode, days: g.days, start: g.started_at };
-  return seasonNext(gg, seasonAt(gg, date)).start;
+  return date;
 }
