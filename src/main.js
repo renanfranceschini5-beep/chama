@@ -655,7 +655,7 @@ function toast(t) {
   el.textContent = t; el.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3000);
 }
-const toTop = () => { const m = document.getElementById('main'); if (m) m.scrollTop = 0; };
+const toTop = () => window.scrollTo(0, 0);
 function go(screen, extra) { Object.assign(ui, { screen, sheet: null }, extra || {}); render(); toTop(); }
 function goPush(screen, extra) { navStack.push({ screen: ui.screen, viewUser: ui.viewUser, postId: ui.postId, histUser: ui.histUser }); go(screen, extra); }
 const newForm = () => ({ when: 'hoje', photo: null, blob: null, cat: 'Musculação', min: 45, desc: '', groups: myGroups().filter((g) => g.started).map((g) => g.id) });
