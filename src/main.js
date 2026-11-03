@@ -843,6 +843,16 @@ document.addEventListener('click', (ev) => {
   ev.preventDefault();
   fn(el.dataset, el, ev);
 });
+// iPhone com o app instalado na tela de início: às vezes o toque num campo não abre o teclado.
+// Aqui o próprio app ativa o campo no fim do toque (dentro do gesto, então o teclado abre).
+document.addEventListener('touchend', (ev) => {
+  const t = ev.target.closest('input, textarea, label');
+  if (!t) return;
+  const field = t.tagName === 'LABEL' ? t.querySelector('input:not([type=file]), textarea') : t;
+  if (!field || field.type === 'file' || field.disabled || document.activeElement === field) return;
+  if (t.tagName === 'LABEL' && ev.target.closest('button, [data-a]')) return;
+  field.focus();
+}, { passive: true });
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && ui.sheet) { ui.sheet = null; render(); }
   if (ev.key === 'Enter') {
