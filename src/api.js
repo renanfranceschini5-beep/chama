@@ -14,6 +14,9 @@ export const photoUrl = (path) => (path ? sb.storage.from('fotos').getPublicUrl(
 export async function sendLink(email) {
   must(await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/' } }));
 }
+export async function verifyCode(email, token) {
+  must(await sb.auth.verifyOtp({ email, token, type: 'email' }));
+}
 export async function session() { return (await sb.auth.getSession()).data.session; }
 export async function signOut() { await sb.auth.signOut(); }
 

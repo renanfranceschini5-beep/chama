@@ -71,12 +71,17 @@ function screenLogin() {
     </div>
     <div class="pad stack" style="padding-top:24px">
       ${code ? `<div class="card"><strong>Você recebeu um convite</strong><div class="muted">Entre com seu e-mail e a turma ${esc(code)} abre em seguida.</div></div>` : ''}
-      ${ui.sent ? `<div class="card stack"><strong style="font-size:17px">Confira seu e-mail</strong><div>Mandamos um link de acesso para <strong>${esc(ui.email)}</strong>. Abra o link neste mesmo aparelho para entrar.</div><div class="muted">Não chegou? Veja a caixa de spam ou peça outro link.</div><button class="btn ghost small" data-a="relogin">Usar outro e-mail</button></div>` : `
+      ${ui.sent ? `<div class="card stack"><strong style="font-size:17px">Confira seu e-mail</strong><div>Mandamos um código para <strong>${esc(ui.email)}</strong>. Digite aqui:</div>
+        <input class="input disp" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="000000" style="height:56px;font-size:30px;text-align:center;letter-spacing:.2em">
+        <button class="btn brasa ${ui.busy ? 'spin' : ''}" data-a="verify">Entrar</button>
+        <div class="muted">Não chegou? Veja a caixa de spam. ${standaloneNote()}</div>
+        <button class="btn ghost small" data-a="relogin">Usar outro e-mail</button></div>` : `
       <label class="stack" style="gap:6px"><span class="label">Seu e-mail</span><input class="input" id="email" type="email" inputmode="email" autocomplete="email" placeholder="voce@email.com" value="${esc(ui.email)}"></label>
       <button class="btn brasa" data-a="login">Receber link de acesso</button>
-      <div class="muted">Sem senha: você entra pelo link que chega no seu e-mail.</div>`}
+      <div class="muted">Sem senha: você recebe um código no e-mail.</div>`}
     </div>`;
 }
+function standaloneNote() { return isStandalone() ? 'Use o código: o link do e-mail abre no navegador, fora do app.' : ''; }
 function screenOnboarding() {
   const me = db.users[ME];
   const color = ui.color || me.bg;
@@ -609,9 +614,14 @@ const A = {
     const email = (document.getElementById('email').value || '').trim();
     if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Digite um e-mail válido.');
     ui.email = email;
-    await run(async () => { await api.sendLink(email); ui.sent = true; });
+    await run(async () => { await api.sendLink(email); ui.sent = true; store('chama-email', email); });
   },
-  relogin() { ui.sent = false; render(); },
+  relogin() { ui.sent = false; store('chama-email', null); render(); },
+  async verify() {
+    const code = ((document.getElementById('otp') || {}).value || '').replace(/\D/g, '');
+    if (code.length < 6) return toast('Digite o código que chegou no e-mail.');
+    await run(async () => { await api.verifyCode(ui.email, code); });
+  },
   pcolor(d) { ui.pname = (document.getElementById('pname') || {}).value; ui.color = d.c; render(); },
   async 'save-profile'() {
     const name = (document.getElementById('pname').value || '').trim();
@@ -757,7 +767,7 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && ui.sheet) { ui.sheet = null; render(); }
   if (ev.key === 'Enter') {
-    const map = { comment: 'comment', email: 'login', code: 'check-code' };
+    const map = { comment: 'comment', email: 'login', code: 'check-code', otp: 'verify' };
     const a = map[ev.target.id];
     if (a) { const b = document.querySelector(`[data-a="${a}"]`); if (b) b.click(); }
   }
@@ -797,11 +807,12 @@ async function boot() {
   if (params.get('entrar')) { store('chama-convite', params.get('entrar').toUpperCase()); history.replaceState(null, '', '/'); }
   if (!api.configured) return render();
   ui.group = stored('chama-turma');
+  if (stored('chama-email')) { ui.email = stored('chama-email'); ui.sent = true; }
   const s = await api.session();
-  if (s) { ME = s.user.id; render(); await reload(); await checkPendingInvite(); }
+  if (s) { ME = s.user.id; store('chama-email', null); render(); await reload(); await checkPendingInvite(); }
   else render();
   api.sb.auth.onAuthStateChange(async (event, sess) => {
-    if (event === 'SIGNED_IN' && sess && sess.user.id !== ME) { ME = sess.user.id; await reload(); await checkPendingInvite(); }
+    if (event === 'SIGNED_IN' && sess && sess.user.id !== ME) { ME = sess.user.id; store('chama-email', null); await reload(); await checkPendingInvite(); }
     if (event === 'SIGNED_OUT') { ME = null; db = null; render(); }
   });
   // Atualiza quando o app volta para a frente (outra pessoa pode ter treinado)
