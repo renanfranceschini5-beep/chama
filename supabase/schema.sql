@@ -248,3 +248,10 @@ create policy p_fotos_sel on storage.objects for select to authenticated using (
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant execute on all functions in schema public to authenticated;
+
+-- ---------- v1.1: foto de perfil e metas de alcance ----------
+alter table public.profiles add column if not exists avatar_path text;
+alter table public.goals add column if not exists unit text;
+alter table public.goals add column if not exists deadline date;
+alter table public.goals drop constraint if exists goals_type_check;
+alter table public.goals add constraint goals_type_check check (type in ('agua', 'sono', 'comida', 'outra', 'alcance'));
