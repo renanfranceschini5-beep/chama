@@ -3,6 +3,7 @@ import { D, cap, isActive, streakInfo, seasonAt, seasonNext, groupToday, seasonH
 import * as api from './api.js';
 
 /* ===================== Constantes ===================== */
+const VERSION = 'versão ' + (typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev');
 const CATS = ['Musculação', 'Corrida', 'Caminhada', 'Bicicleta', 'Natação', 'Funcional', 'HIIT', 'Crossfit', 'Yoga', 'Pilates', 'Dança', 'Lutas', 'Futebol', 'Tênis e beach tennis', 'Trilha', 'Remo', 'Escalada', 'Alongamento e mobilidade', 'Outro'];
 const REACTS = ['🔥', '👏', '💪', '😮', '😂'];
 const COLORS = ['#7C93FF', '#FFD2BF', '#C9D7CE', '#F2D6E6', '#FCE9A9', '#E6E9EE', '#121826', '#2443D6'];
@@ -82,6 +83,7 @@ function screenLogin() {
       <label class="stack" style="gap:6px"><span class="label">Seu e-mail</span><input class="input" id="email" type="email" inputmode="email" autocomplete="email" placeholder="voce@email.com" value="${esc(ui.email)}"></label>
       <button class="btn brasa" data-a="login">Receber código</button>
       <div class="muted">Sem senha: você recebe um código no e-mail.</div>`}
+      <div class="version">${VERSION}</div>
     </div>`;
 }
 function standaloneNote() { return isStandalone() ? 'Use o código: o link do e-mail abre no navegador, fora do app.' : ''; }
@@ -597,7 +599,9 @@ const SHEETS = {
       ${myGroups().filter((g) => g.leader !== ME).map((g) => `<button class="btn ghost small" data-a="leave" data-g="${g.id}">Sair da turma ${esc(g.name)}</button>`).join('')}
       <button class="btn ghost small" data-a="logout">Sair do Chama neste aparelho</button>
       <button class="btn ghost small" data-a="sheet" data-s="apagar" style="color:var(--apagada)">Apagar meus dados</button>
-      <div class="muted">Fotos, treinos e metas ficam visíveis só para quem está nas mesmas turmas que você.</div>`;
+      <div class="muted">Fotos, treinos e metas ficam visíveis só para quem está nas mesmas turmas que você.</div>
+      <button class="btn ghost small" data-a="update-app">Atualizar o app</button>
+      <button class="version" data-a="diag" style="border:0;background:transparent;width:100%">${VERSION} · ${isStandalone() ? 'app instalado' : 'navegador'}${diagOn ? ' · diagnóstico ligado' : ''}</button>`;
   },
   apagar() {
     return `<h2 class="title" style="font-size:24px">Apagar meus dados</h2><div>Isso apaga todos os seus treinos, fotos e metas, e tira você de todas as turmas. Não dá para desfazer.</div><button class="btn dark" data-a="delete-data" style="background:var(--apagada)">Apagar tudo</button><button class="btn ghost small" data-a="close-sheet">Cancelar</button>`;
@@ -651,7 +655,8 @@ function toast(t) {
   el.textContent = t; el.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3000);
 }
-function go(screen, extra) { Object.assign(ui, { screen, sheet: null }, extra || {}); window.scrollTo(0, 0); render(); }
+const toTop = () => { const m = document.getElementById('main'); if (m) m.scrollTop = 0; };
+function go(screen, extra) { Object.assign(ui, { screen, sheet: null }, extra || {}); render(); toTop(); }
 function goPush(screen, extra) { navStack.push({ screen: ui.screen, viewUser: ui.viewUser, postId: ui.postId, histUser: ui.histUser }); go(screen, extra); }
 const newForm = () => ({ when: 'hoje', photo: null, blob: null, cat: 'Musculação', min: 45, desc: '', groups: myGroups().filter((g) => g.started).map((g) => g.id) });
 const errMsg = (e) => (e && e.message ? e.message : String(e));
@@ -678,6 +683,11 @@ const A = {
     if (!/^\S+@\S+\.\S+$/.test(email)) return toast('Digite um e-mail válido.');
     ui.email = email;
     await run(async () => { await api.sendLink(email); ui.sent = true; store('chama-email', email); });
+  },
+  diag() { diagTaps++; if (diagTaps >= 5) { diagTaps = 0; setDiag(!diagOn); render(); } },
+  async 'update-app'() {
+    try { const regs = await navigator.serviceWorker?.getRegistrations?.() || []; for (const r of regs) await r.unregister(); const ks = await caches?.keys?.() || []; for (const k of ks) await caches.delete(k); } catch (e) {}
+    location.reload();
   },
   relogin() { ui.sent = false; store('chama-email', null); render(); },
   async verify() {
@@ -730,7 +740,7 @@ const A = {
       await api.addCheckin(ME, { date, cat: f.cat, min: f.min, desc: f.desc, photo_path, groups });
       await reload();
       ui.success = { group: target, rankBefore: before ? before.pos : null, counted: f.min >= 30 };
-      ui.screen = 'sucesso'; window.scrollTo(0, 0);
+      ui.screen = 'sucesso'; toTop();
     });
   },
   async react(d) {
@@ -843,6 +853,34 @@ document.addEventListener('click', (ev) => {
   ev.preventDefault();
   fn(el.dataset, el, ev);
 });
+/* ---------- Diagnóstico (liga com 5 toques na versão, em Perfil > ⚙) ---------- */
+let diagOn = stored('chama-diag') === '1';
+let diagTaps = 0;
+const diagLines = [];
+const descEl = (e) => !e ? '-' : (e.tagName || '?').toLowerCase() + (e.id ? '#' + e.id : '') + (e.className && typeof e.className === 'string' ? '.' + e.className.split(' ')[0] : '');
+function dlog(t) {
+  if (!diagOn) return;
+  diagLines.push(new Date().toISOString().slice(17, 23) + ' ' + t);
+  while (diagLines.length > 18) diagLines.shift();
+  let el = document.getElementById('diag');
+  if (!el) { el = document.createElement('div'); el.id = 'diag'; document.body.appendChild(el); }
+  el.textContent = diagLines.join('\n');
+}
+function setDiag(on) {
+  diagOn = on; store('chama-diag', on ? '1' : null);
+  const el = document.getElementById('diag'); if (el && !on) el.remove();
+  if (on) dlog('diagnóstico ligado · ' + VERSION + ' · ' + (isStandalone() ? 'instalado' : 'navegador') + ' · ' + innerWidth + 'x' + innerHeight);
+}
+['touchstart', 'touchend', 'click'].forEach((t) => document.addEventListener(t, (ev) => {
+  if (!diagOn) return;
+  const p = ev.changedTouches ? ev.changedTouches[0] : ev;
+  const x = Math.round(p.clientX), y = Math.round(p.clientY);
+  dlog(t + ' alvo=' + descEl(ev.target) + ' ponto=' + descEl(document.elementFromPoint(x, y)) + ' @' + x + ',' + y + (ev.defaultPrevented ? ' PREVENIDO' : ''));
+}, { capture: true, passive: true }));
+document.addEventListener('focusin', (ev) => dlog('focusin ' + descEl(ev.target)), true);
+document.addEventListener('focusout', (ev) => dlog('focusout ' + descEl(ev.target) + ' -> ' + descEl(ev.relatedTarget)), true);
+if (diagOn) setTimeout(() => setDiag(true), 0);
+
 // iPhone com o app instalado na tela de início: às vezes o toque num campo não abre o teclado.
 // Aqui o próprio app ativa o campo no fim do toque (dentro do gesto, então o teclado abre).
 document.addEventListener('touchend', (ev) => {
