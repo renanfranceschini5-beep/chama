@@ -605,14 +605,28 @@ const SHEETS = {
 };
 
 /* ===================== Render ===================== */
-function render() {
+// Guarda o que a pessoa digitou (e o foco) antes de redesenhar, e devolve depois.
+function keepTyping(fn) {
+  const typed = {};
+  document.querySelectorAll('#main input[id], #main textarea[id], #layer input[id], #layer textarea[id]').forEach((el) => {
+    if (el.type !== 'file' && el.value !== el.defaultValue) typed[el.id] = el.value;
+  });
+  const act = document.activeElement;
+  const focusId = act && act.id && (act.tagName === 'INPUT' || act.tagName === 'TEXTAREA') ? act.id : null;
+  fn();
+  for (const id in typed) { const el = document.getElementById(id); if (el && el.type !== 'file') el.value = typed[id]; }
+  if (focusId) { const el = document.getElementById(focusId); if (el && document.activeElement !== el) { try { el.focus({ preventScroll: true }); } catch (e) {} } }
+}
+const isTyping = () => { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && a.type !== 'file'; };
+function render() { keepTyping(renderNow); }
+function renderNow() {
   const main = document.getElementById('main');
   const navEl = document.getElementById('nav');
   const layer = document.getElementById('layer');
   if (!api.configured) { main.innerHTML = screenSetup(); navEl.hidden = true; return; }
-  if (!ME) { main.innerHTML = screenLogin(); navEl.hidden = true; main.classList.add('nonav'); layer.innerHTML = toastHtml(); return; }
+  if (!ME) { main.innerHTML = screenLogin(); navEl.hidden = true; main.classList.add('nonav'); layer.innerHTML = ''; return; }
   if (!db) { main.innerHTML = '<div class="empty">Carregando…</div>'; return; }
-  if (!db.users[ME] || db.users[ME].name === 'Sem nome' || ui.screen === 'onboarding') { main.innerHTML = screenOnboarding(); navEl.hidden = true; main.classList.add('nonav'); layer.innerHTML = toastHtml(); attachAvatar(); return; }
+  if (!db.users[ME] || db.users[ME].name === 'Sem nome' || ui.screen === 'onboarding') { main.innerHTML = screenOnboarding(); navEl.hidden = true; main.classList.add('nonav'); layer.innerHTML = ''; attachAvatar(); return; }
   main.classList.remove('nonav');
   navEl.hidden = false;
   const scr = SCREENS[ui.screen] ? ui.screen : 'feed';
@@ -624,23 +638,29 @@ function render() {
     <button class="fire" data-a="go" data-to="registrar" aria-label="Acender a chama">${FLAME('#121826', null, 24)}</button>
     <button class="${tab === 'turmas' ? 'on' : ''}" data-a="go" data-to="turmas">${I.people}Turmas</button>
     <button class="${tab === 'perfil' ? 'on' : ''}" data-a="me">${I.user}Perfil</button>`;
-  layer.innerHTML = (ui.sheet ? `<div class="sheet-wrap" data-a="close-sheet"><div class="sheet" role="dialog" aria-modal="true"><div class="grip"></div><div class="row" style="justify-content:flex-end;margin-top:-8px"><button class="round" data-a="close-sheet" aria-label="Fechar">${I.close}</button></div>${SHEETS[ui.sheet]()}</div></div>` : '') + toastHtml();
+  layer.innerHTML = (ui.sheet ? `<div class="sheet-wrap" data-a="close-sheet"><div class="sheet" role="dialog" aria-modal="true"><div class="grip"></div><div class="row" style="justify-content:flex-end;margin-top:-8px"><button class="round" data-a="close-sheet" aria-label="Fechar">${I.close}</button></div>${SHEETS[ui.sheet]()}</div></div>` : '');
   const foto = document.getElementById('foto');
   if (foto) foto.addEventListener('change', onPhoto);
 }
 function attachAvatar() { const a = document.getElementById('avatarfile'); if (a) a.addEventListener('change', onAvatar); }
-const toastHtml = () => (ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : '');
+// O aviso fica num elemento próprio: aparecer e sumir não redesenha a tela (não fecha o teclado).
 let toastTimer;
-function toast(t) { ui.toast = t; clearTimeout(toastTimer); toastTimer = setTimeout(() => { ui.toast = null; render(); }, 3000); render(); }
+function toast(t) {
+  let el = document.getElementById('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.textContent = t; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3000);
+}
 function go(screen, extra) { Object.assign(ui, { screen, sheet: null }, extra || {}); window.scrollTo(0, 0); render(); }
 function goPush(screen, extra) { navStack.push({ screen: ui.screen, viewUser: ui.viewUser, postId: ui.postId, histUser: ui.histUser }); go(screen, extra); }
 const newForm = () => ({ when: 'hoje', photo: null, blob: null, cat: 'Musculação', min: 45, desc: '', groups: myGroups().filter((g) => g.started).map((g) => g.id) });
 const errMsg = (e) => (e && e.message ? e.message : String(e));
 
-async function reload() {
+async function reload(quiet) {
   db = await api.loadAll(ME);
   db.today = D.today();
   if (!db.groups.find((g) => g.id === ui.group)) ui.group = (myGroups()[0] || {}).id || null;
+  if (quiet && isTyping()) return; // atualização de fundo: não mexe na tela enquanto a pessoa digita
   render();
 }
 async function run(fn, okMsg) {
@@ -903,6 +923,6 @@ async function boot() {
     if (event === 'SIGNED_OUT') { ME = null; db = null; render(); }
   });
   // Atualiza quando o app volta para a frente (outra pessoa pode ter treinado)
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ME && db && !ui.busy) { const t = D.today(); reload().then(() => { if (t !== db.today) render(); }); } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ME && db && !ui.busy) { const t = D.today(); reload(true).catch(() => {}); } });
 }
 boot();
